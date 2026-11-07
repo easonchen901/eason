@@ -224,8 +224,7 @@ export function apply(ctx, config = {}) {
         const shouldPush = committed || await hasUnpushed(cwd)
         if (shouldPush) {
           const token = await readToken()
-          const push = await runGit(cwd, [...authArgs(token), 'push', '-u', 'origin', cfg.branch])
-          if (push.code !== 0) throw new Error('git push failed: ' + (push.stderr || push.stdout).trim())
+          await pushWithReconcile(cwd, token)
           pushed = true
         }
       }
