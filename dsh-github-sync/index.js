@@ -47,7 +47,6 @@ export function apply(ctx, config = {}) {
   const logger = ctx.logger('github-sync')
   const tools = ctx.tools
   const credentials = ctx.get('credentials')
-  const workingDirectory = ctx.get('workingDirectory')
 
   const state = {
     syncing: false,
@@ -177,31 +176,40 @@ export function apply(ctx, config = {}) {
       await runGit(cwd, ['add', '-A'])
 
       const staged = await runGit(cwd, ['diff', '--cached', '--quiet'])
-      if (staged.code === 0) {
-        state.lastSyncAt = Date.now()
-        state.lastSync = { ok: true, changed: false, message: 'no changes to commit' }
-        return { ...state.lastSync }
-      }
 
-      const message = (customMessage && String(customMessage).trim()) || cfg.commitMessage || 'sync: workspace changes'
-      const commit = await runGit(cwd, [
-        '-c', `user.name=${cfg.authorName}`,
-        '-c', `user.email=${cfg.authorEmail}`,
-        'commit', '-m', message,
-      ])
-      if (commit.code !== 0) throw new Error('git commit failed: ' + (commit.stderr || commit.stdout).trim())
+      let committed = false
+      let commitSummary = null
+      if (staged.code !== 0) {
+        const message = (customMessage && String(customMessage).trim()) || cfg.commitMessage || 'sync: workspace changes'
+        const commit = await runGit(cwd, [
+          '-c', `user.name=${cfg.authorName}`,
+          '-c', `user.email=${cfg.authorEmail}`,
+          'commit', '-m', message,
+        ])
+        if (commit.code !== 0) throw new Error('git commit failed: ' + (commit.stderr || commit.stdout).trim())
+        committed = true
+        commitSummary = (commit.stdout || '').trim().split('\n')[0]
+      }
 
       let pushed = false
       if (cfg.push) {
-        const token = await readToken()
-        const push = await runGit(cwd, [...authArgs(token), 'push', '-u', 'origin', cfg.branch])
-        if (push.code !== 0) throw new Error('git push failed: ' + (push.stderr || push.stdout).trim())
-        pushed = true
+        const shouldPush = committed || await hasUnpushed(cwd)
+        if (shouldPush) {
+          const token = await readToken()
+          const push = await runGit(cwd, [...authArgs(token), 'push', '-u', 'origin', cfg.branch])
+          if (push.code !== 0) throw new Error('git push failed: ' + (push.stderr || push.stdout).trim())
+          pushed = true
+        }
       }
 
-      const summary = (commit.stdout || '').trim().split('\n')[0]
       state.lastSyncAt = Date.now()
-      state.lastSync = { ok: true, changed: true, commit: summary, pushed }
+      if (committed) {
+        state.lastSync = { ok: true, changed: true, commit: commitSummary, pushed }
+      } else if (pushed) {
+        state.lastSync = { ok: true, changed: false, pushed, message: 'pushed existing commits' }
+      } else {
+        state.lastSync = { ok: true, changed: false, message: 'no changes to commit' }
+      }
       return { ...state.lastSync }
     } catch (error) {
       const message = error && error.message ? error.message : String(error)
@@ -488,7 +496,9 @@ export function apply(ctx, config = {}) {
     if (!value) return 'No result'
     if (value.skipped) return value.message
     if (!value.ok) return 'GitHub sync failed: ' + (value.message || 'unknown error')
-    if (!value.changed) return 'GitHub sync: no changes to commit'
+    if (!value.changed) {
+      return value.pushed ? 'GitHub sync: pushed existing commits' : 'GitHub sync: no changes to commit'
+    }
     return 'GitHub sync done: ' + (value.commit || 'committed') +
       (value.pushed ? ' (pushed to origin/' + cfg.branch + ')' : ' (commit created, push disabled)')
   }
