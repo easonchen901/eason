@@ -1,0 +1,30 @@
+# 依赖
+node_modules/
+venv/
+.env/
+__pycache__/
+*.pyc
+
+# 构建产物
+dist/
+build/
+*.exe
+
+# 大文件（数据集、模型权重，一般不要直接传 GitHub）
+data/
+*.zip
+*.pth
+*.ckpt
+*.pt
+*.onnx
+
+# 私密信息
+.env
+*.key
+*.pem
+
+# 系统 / 编辑器
+.DS_Store
+.idea/
+.vscode/
+*.log
