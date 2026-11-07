@@ -159,6 +159,31 @@ export function apply(ctx, config = {}) {
     return count > 0
   }
 
+  async function pushWithReconcile(cwd, token) {
+    const auth = authArgs(token)
+    // Fetch the remote branch so we can detect work the local branch does not have.
+    await runGit(cwd, [...auth, 'fetch', 'origin', cfg.branch])
+
+    const behind = await runGit(cwd, ['rev-list', '--count', `HEAD..origin/${cfg.branch}`])
+    const behindCount = behind.code === 0 ? parseInt((behind.stdout || '').trim() || '0', 10) : 0
+    if (behindCount > 0) {
+      // Rebase local commits onto the remote; fall back to a merge for unrelated histories.
+      const rebase = await runGit(cwd, ['rebase', `origin/${cfg.branch}`])
+      if (rebase.code !== 0) {
+        await runGit(cwd, ['rebase', '--abort'])
+        const merge = await runGit(cwd, ['merge', `origin/${cfg.branch}`, '--allow-unrelated-histories', '--no-edit'])
+        if (merge.code !== 0) {
+          await runGit(cwd, ['merge', '--abort'])
+          throw new Error('could not reconcile with remote: ' + (merge.stderr || merge.stdout).trim())
+        }
+      }
+    }
+
+    const push = await runGit(cwd, [...auth, 'push', '-u', 'origin', cfg.branch])
+    if (push.code !== 0) throw new Error('git push failed: ' + (push.stderr || push.stdout).trim())
+    return true
+  }
+
   // ---- sync ------------------------------------------------------------------
 
   async function syncNow(customMessage) {
