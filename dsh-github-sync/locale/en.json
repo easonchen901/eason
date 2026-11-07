@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "GitHub sync",
+    "description": "Commits workspace changes and pushes them to a GitHub repository automatically, on an interval, or on demand."
+  }
+}

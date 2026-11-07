@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "GitHub 同步",
+    "description": "将工作区文件变更提交并推送到 GitHub 仓库，支持自动、定时或手动触发。"
+  }
+}
