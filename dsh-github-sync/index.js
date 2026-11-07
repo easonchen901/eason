@@ -63,8 +63,11 @@ export function apply(ctx, config = {}) {
 
   function sourceDir() {
     if (cfg.sourceDirectory) return cfg.sourceDirectory
-    if (workingDirectory && typeof workingDirectory.defaultDirectory === 'string') {
-      return workingDirectory.defaultDirectory
+    const registry = ctx.get('workspaceRegistry')
+    if (registry && typeof registry.list === 'function') {
+      const workspaces = registry.list()
+      const first = Array.isArray(workspaces) && workspaces.length ? workspaces[0] : undefined
+      if (first && typeof first.path === 'string') return first.path
     }
     return process.cwd()
   }
