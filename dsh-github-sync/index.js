@@ -150,6 +150,13 @@ export function apply(ctx, config = {}) {
     return cwd
   }
 
+  async function hasUnpushed(cwd) {
+    const result = await runGit(cwd, ['rev-list', '--count', 'HEAD', '--not', '--remotes=origin'])
+    if (result.code !== 0) return true
+    const count = parseInt((result.stdout || '').trim() || '0', 10)
+    return count > 0
+  }
+
   // ---- sync ------------------------------------------------------------------
 
   async function syncNow(customMessage) {
